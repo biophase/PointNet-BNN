@@ -18,12 +18,12 @@ import math
 from plyfile import PlyData, PlyElement
 
 import parse_pointcloud
-from parse_stanford3d import COLOR_MAP
-from visualize import bcolors
+# from parse_stanford3d import COLOR_MAP
+from viz_utils import bcolors
 
 # load samples and model
 samples_starting_with = '' # for a single file just put the name without .npy
-model_name = '20220216_1959' 
+ 
 # note : best model so far: 20211216_1852, 
 # best bayesian model so far : 20211223_0008
 
@@ -43,6 +43,13 @@ show_boundaries = True
 # model settings
 model_type = 'bayesian' # options: 'bayesian', '64', '1024'
 batch_size = 24
+num_classes = 12
+num_feats = 14
+dataset_name = 'snrw_full_sr-0-40_12-classes'
+model_name = '20220414_0847'
+voxel_size = [2.5,2.5,50.]
+apply_voting_stride = True
+voting_stride = [1.25,1.25,0.0]  
 
 # output
 save_pred = True # set to False to view result or True to save to .txt
@@ -50,7 +57,7 @@ save_pred = True # set to False to view result or True to save to .txt
 # setup paths
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)),'..')
 # ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)))
-samples_path_prefix = os.path.join(ROOT,'data/scaf_sing/test/' + samples_starting_with)
+samples_path_prefix = os.path.join(ROOT,f'data_prep/INPUT/1_npy/{dataset_name}/val/')
 
 # find optimal checkpoint
 model_path = os.path.join(ROOT,'model/checkpoints',model_name)
@@ -65,7 +72,7 @@ print("\nLoading segmentation model...")
 print("Using checkpoint {} with mIoU {}{:0.4f}{}".format(checkpoint, bcolors.OKGREEN, \
                                                 val_miou[best_checkpoint_indx], bcolors.ENDC ), end ='\n')
 bn_momentum = tf.Variable(.99, trainable=False)
-inference_model = MODEL_TYPES[model_type](bn_momentum=bn_momentum, n_classes=COLOR_MAP.__len__())
+inference_model = MODEL_TYPES[model_type](bn_momentum=bn_momentum, n_classes=num_classes, n_feats = num_feats)
 load_status = inference_model.load_weights(model_path)
 load_status.assert_consumed()
 print('Done!')
@@ -95,8 +102,9 @@ def get_u_alea(preds):
 #################
 
 sample_paths = glob(samples_path_prefix + '*.npy')
+print(f"Found {len(sample_paths)} test samples from {samples_path_prefix}.")
 
-if save_pred: output_path = os.path.join(ROOT,'data','test_pred','pred_output_'+str(int(time.time())))
+if save_pred: output_path = os.path.join(ROOT,'data_prep','INPUT','3_test',f'{dataset_name}',str(int(time.time())))
 for i, test_sample_path in enumerate(sample_paths):
     
     sample_name = os.path.split(test_sample_path)[1]
@@ -104,16 +112,17 @@ for i, test_sample_path in enumerate(sample_paths):
     # load pointcloud
     print("\nLoading File {} [{}/{}]".format(sample_name,i,len(sample_paths)))
     test_sample = np.load(test_sample_path)#.T ##################################################3
-    test_sample = test_sample*[1,1,1,1/255.,1/255.,1/255.,1]
+    # test_sample = test_sample*[1,1,1,1/255.,1/255.,1/255.,1]
     test_sample = parse_pointcloud.pcd_corner_to_zero (test_sample)
 ###################    
 
-    apply_voting_stride = True
+    
     if apply_voting_stride:
-      voting_stride = [0.5,0.5,0.0]  
+      voting_stride = voting_stride
       test_sample[:,:3] = test_sample[:,:3] + voting_stride
     # get blocks  
-    test_sample_blocks,voxel_origins,_ = parse_pointcloud.get_2d_voxels(test_sample)
+    
+    test_sample_blocks,voxel_origins,_ = parse_pointcloud.get_3d_voxels(test_sample,voxel_size=voxel_size)
 
 ####################
 
@@ -134,7 +143,7 @@ for i, test_sample_path in enumerate(sample_paths):
 
         # do inference
         label_true = test_sample_block[...,-1]
-        points = test_sample_block[..., :9]
+        points = test_sample_block[..., :num_feats]
         # points = test_sample_block[..., :6]
 
         if model_type.startswith('bayesian'):

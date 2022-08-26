@@ -2,7 +2,7 @@ import os
 os.environ['TFF_CPP_MIN_LOG_LEVEL'] = '2'
 import argparse
 from glob import glob
-from time import time
+import time
 from datetime import timezone, datetime
 import tensorflow as tf
 import h5py
@@ -12,8 +12,8 @@ import numpy as np
 
 from model import get_model_segmentation, get_model_segmentation_bayesian
 from losses import *
-from dataset_utils import tf_parse_filename, train_val_split
-from parse_stanford3d import *
+# from dataset_utils import tf_parse_filename, train_val_split
+from data_loader import *
 
 ########################
 
@@ -42,8 +42,9 @@ LR_DECAY_STEPS = 5000
 LR_DECAY_RATE = 0.9
 
 INIT_TIMESTAMP = get_timestamp()
-NUM_CATEGORIES = 4
-NUM_FEATS = 9
+NUM_CATEGORIES = 12
+NUM_FEATS = 12
+DATASET_NAME = 'david_grid_ss_BS-20-00'
 
 RUNNING_BAYESIAN = True
 
@@ -52,8 +53,8 @@ RUNNING_BAYESIAN = True
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 
-train_generator = Generator_h5 ('data/scaf_real/250x250x500/train.h5')
-val_generator = Generator_h5 ('data/scaf_real/250x250x500/val.h5')
+train_generator = Generator_h5 (f'data_prep/INPUT/2_h5/{DATASET_NAME}/train.h5')
+val_generator = Generator_h5 (f'data_prep/INPUT/2_h5/{DATASET_NAME}/val.h5')
 
 
 def get_train_generator(reshuffle = True):
@@ -96,9 +97,9 @@ def get_bn_momentum(step):
     return min(0.99, 0.5 + 0.0002*step)
 bn_momentum = tf.Variable(get_bn_momentum(0), trainable=False)
 if RUNNING_BAYESIAN:
-    model = get_model_segmentation_bayesian (bn_momentum=bn_momentum, n_classes=NUM_CATEGORIES)
+    model = get_model_segmentation_bayesian (bn_momentum=bn_momentum, n_classes=NUM_CATEGORIES, n_feats=NUM_FEATS)
 else:
-    model = get_model_segmentation(bn_momentum=bn_momentum, n_classes=NUM_CATEGORIES)
+    model = get_model_segmentation(bn_momentum=bn_momentum, n_classes=NUM_CATEGORIES, n_feats=NUM_FEATS)
 model.summary()
 
 
@@ -128,11 +129,11 @@ loss_fxn = ce_loss
 train_acc = tf.keras.metrics.CategoricalAccuracy()
 train_prec = tf.keras.metrics.Precision()
 train_recall = tf.keras.metrics.Recall()
-train_miou= tf.keras.metrics.MeanIoU(N_CATEGORIES)
+train_miou= tf.keras.metrics.MeanIoU(NUM_CATEGORIES)
 val_acc = tf.keras.metrics.CategoricalAccuracy()
 val_prec = tf.keras.metrics.Precision()
 val_recall = tf.keras.metrics.Recall()
-val_miou= tf.keras.metrics.MeanIoU(N_CATEGORIES)
+val_miou= tf.keras.metrics.MeanIoU(NUM_CATEGORIES)
 
 
 
@@ -219,7 +220,7 @@ for epoch in range(EPOCHS):
         tic = time.time()
 
         ### Feature vector modes: [choose 1 and comment out the other 2]
-        x_train = x_train[...,:9] # xyz, rgb, xyz(norm)
+        # x_train = x_train[...,:9] # xyz, rgb, xyz(norm)
         # x_train = np.concatenate((x_train[...,:3], x_train[...,6:9]), axis=-1) # xyz, xyz(norm)
         # x_train = x_train[...,:3] # xyz only
 
@@ -252,7 +253,7 @@ for epoch in range(EPOCHS):
         
 
         ### Feature vector modes: 
-        x_val = x_val[...,:9] # xyz, rgb, xyz(norm)
+        # x_val = x_val[...,:9] # xyz, rgb, xyz(norm)
         # x_val = np.concatenate((x_val[...,:3], x_val[...,6:9]), axis=-1) # xyz, xyz(norm)
         # x_train = x_train[...,:3] # xyz only
 
@@ -308,3 +309,4 @@ np.savetxt('model/checkpoints/' + INIT_TIMESTAMP + '/val_miou_container.txt', va
 np.savetxt('model/checkpoints/' + INIT_TIMESTAMP + '/time_container.txt', time_container )
 if RUNNING_BAYESIAN: np.savetxt('model/checkpoints/' + INIT_TIMESTAMP + '/train_kl_container.txt', train_kl_container)
 
+9

@@ -38,11 +38,12 @@ def ply_to_npy(arr):
                 ],axis=-1)
     return npy_arr
 
+dataset_name ='snrw_full_sr-0-40_12-classes'
 
 INIT_TIMESTAMP = get_timestamp()
 WORKFLOW = WorkflowMode.FOR_VIZ # select mode
 ROOT = os.path.split(os.path.abspath(__file__))[0]
-INPUT = os.path.join(ROOT, 'scaf_sing')
+INPUT = os.path.join(ROOT, 'input',dataset_name)
 OUTPUT = os.path.join(ROOT,'output',INIT_TIMESTAMP)
 
 
